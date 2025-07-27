@@ -1,9 +1,12 @@
-import ECGGenerator from './components/ECGGenerator';
+import ECGWaveformAnimator from './ECGAnimator';
+import './index.css'; 
 
 function App() {
   return (
-    <div>
-      <ECGGenerator />
+    <div className="App">
+      <main>
+        <ECGWaveformAnimator />
+      </main>
     </div>
   );
 }
