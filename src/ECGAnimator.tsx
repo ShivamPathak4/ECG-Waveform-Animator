@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
+// ==================== Types and Interfaces ====================
 interface WaveParams {
   heart_rate: number;
   h_p: number;
@@ -39,26 +40,94 @@ interface Point {
   y: number;
 }
 
+type WaveParameter = {
+  key: keyof WaveParams;
+  label: string;
+  step: number;
+};
+
+type CustomBeatParameter = {
+  key: keyof CustomBeat;
+  label: string;
+};
+
+// ==================== Constants ====================
+const DEFAULT_CUSTOM_BEAT: CustomBeat = {
+  h_p: 0.15, b_p: 0.08, h_q: -0.1, b_q: 0.025, h_r: 1.2, b_r: 0.05,
+  h_s: -0.25, b_s: 0.025, h_t: 0.2, b_t: 0.16,
+  l_pq: 0.08, l_st: 0.12, l_tp: 0.3
+};
+
+const WAVE_PARAMETERS: WaveParameter[] = [
+  { key: 'h_p', label: 'P Wave Height', step: 0.01 },
+  { key: 'b_p', label: 'P Wave Breadth', step: 0.01 },
+  { key: 'h_q', label: 'Q Wave Height', step: 0.01 },
+  { key: 'b_q', label: 'Q Wave Breadth', step: 0.005 },
+  { key: 'h_r', label: 'R Wave Height', step: 0.1 },
+  { key: 'b_r', label: 'R Wave Breadth', step: 0.01 },
+  { key: 'h_s', label: 'S Wave Height', step: 0.01 },
+  { key: 'b_s', label: 'S Wave Breadth', step: 0.005 },
+  { key: 'h_t', label: 'T Wave Height', step: 0.01 },
+  { key: 'b_t', label: 'T Wave Breadth', step: 0.01 },
+  { key: 'l_pq', label: 'PQ Segment Length', step: 0.01 },
+  { key: 'l_st', label: 'ST Segment Length', step: 0.01 },
+  { key: 'l_tp', label: 'TP Segment Length', step: 0.01 },
+  { key: 'n_p', label: 'Default P Waves per QRS', step: 1 }
+];
+
+const CUSTOM_BEAT_PARAMETERS: CustomBeatParameter[] = [
+  { key: 'h_p', label: 'P Height' }, { key: 'b_p', label: 'P Breadth' },
+  { key: 'h_q', label: 'Q Height' }, { key: 'b_q', label: 'Q Breadth' },
+  { key: 'h_r', label: 'R Height' }, { key: 'b_r', label: 'R Breadth' },
+  { key: 'h_s', label: 'S Height' }, { key: 'b_s', label: 'S Breadth' },
+  { key: 'h_t', label: 'T Height' }, { key: 'b_t', label: 'T Breadth' },
+  { key: 'l_pq', label: 'PQ Length' }, { key: 'l_st', label: 'ST Length' }, 
+  { key: 'l_tp', label: 'TP Length' }
+];
+
+const PIXELS_PER_SECOND = 150;
+const POINTER_RADIUS = 6;
+const ERASE_WIDTH = 12;
+const SVG_WIDTH = 1000;
+const SVG_HEIGHT = 400;
+
+// ==================== Helper Components ====================
+interface CustomBeatEditorProps {
+  beat: CustomBeat;
+  index: number;
+  onUpdate: (index: number, key: keyof CustomBeat, value: number) => void;
+  onRemove: (index: number) => void;
+}
+
+const CustomBeatEditor: React.FC<CustomBeatEditorProps> = ({ beat, index, onUpdate, onRemove }) => (
+  <div className="border border-gray-300 p-3 mb-3 bg-gray-50 rounded">
+    <h3 className="text-base font-medium mb-2">Custom Beat {index + 1}</h3>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 text-xs">
+      {CUSTOM_BEAT_PARAMETERS.map(({ key, label }) => (
+        <div key={key} className="flex items-center gap-1">
+          <label className="flex-1 text-xs text-gray-600">{label}:</label>
+          <input
+            type="number"
+            value={beat[key]}
+            onChange={(e) => onUpdate(index, key, parseFloat(e.target.value))}
+            className="flex-1 p-1 border rounded text-xs w-full"
+            step="0.01"
+          />
+        </div>
+      ))}
+    </div>
+    <button
+      onClick={() => onRemove(index)}
+      className="mt-2 bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 w-full sm:w-auto"
+    >
+      Remove Beat
+    </button>
+  </div>
+);
+
+// ==================== Main Component ====================
 const ECGWaveformAnimator: React.FC = () => {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const animationFrameId = useRef<number | null>(null);
-  const lastTimestamp = useRef<number>(0);
-  const pointerX = useRef<number>(0);
-  const firstSweep = useRef<boolean>(true);
-  const pathPoints = useRef<Point[]>([]);
-  const drawnPoints = useRef<(Point | null)[]>([]);
-
-  // Global counters to persist beat state
-  const globalBeatCounter = useRef<number>(0);
-  const globalCustomIdx = useRef<number>(0);
-  const globalWaitingNormalBeats = useRef<number>(0);
-  const globalRCycleCounter = useRef<number>(0);
-  const globalPCycleCounter = useRef<number>(0);
-
-  // New: Store the X position where parameters should change
-  const pendingUpdateX = useRef<number | null>(null);
-  const newParametersReady = useRef<boolean>(false);
-
+  // ==================== State Management ====================
   const [pixelsPerMv, setPixelsPerMv] = useState<number>(100);
   const [waveParams, setWaveParams] = useState<WaveParams>({
     heart_rate: 70,
@@ -78,25 +147,34 @@ const ECGWaveformAnimator: React.FC = () => {
     n_p: 1
   });
 
-  // Dynamic patterns
   const [rWaveEnabled, setRWaveEnabled] = useState<boolean>(false);
   const [rWaveCount, setRWaveCount] = useState<number>(2);
   const [rWaveInterval, setRWaveInterval] = useState<number>(5);
   const [pWaveEnabled, setPWaveEnabled] = useState<boolean>(false);
   const [pWaveCount, setPWaveCount] = useState<number>(0);
   const [pWaveInterval, setPWaveInterval] = useState<number>(3);
-
-  // Custom beat sequence
   const [useCustomBeatParameters, setUseCustomBeatParameters] = useState<boolean>(false);
   const [repeatInterval, setRepeatInterval] = useState<number>(10);
   const [customBeats, setCustomBeats] = useState<CustomBeat[]>([]);
 
-  // Store applied parameters separately from form inputs
-  const PIXELS_PER_SECOND = 150;
-  const POINTER_RADIUS = 6;
-  const ERASE_WIDTH = 12;
-  const SVG_WIDTH = 1000;
-  const SVG_HEIGHT = 400;
+  // ==================== Refs for Animation ====================
+  const svgRef = useRef<SVGSVGElement>(null);
+  const animationFrameId = useRef<number | null>(null);
+  const lastTimestamp = useRef<number>(0);
+  const pointerX = useRef<number>(0);
+  const firstSweep = useRef<boolean>(true);
+  const pathPoints = useRef<Point[]>([]);
+  const drawnPoints = useRef<(Point | null)[]>([]);
+  const pendingUpdateX = useRef<number | null>(null);
+  const newParametersReady = useRef<boolean>(false);
+  const pendingNextIteration = useRef<boolean>(false);
+
+  // Global counters to persist beat state
+  const globalBeatCounter = useRef<number>(0);
+  const globalCustomIdx = useRef<number>(0);
+  const globalWaitingNormalBeats = useRef<number>(0);
+  const globalRCycleCounter = useRef<number>(0);
+  const globalPCycleCounter = useRef<number>(0);
 
   // Store applied parameters separately from form inputs
   const appliedParams = useRef<WaveParams>(waveParams);
@@ -124,17 +202,58 @@ const ECGWaveformAnimator: React.FC = () => {
   const pendingRepeatInterval = useRef<number>(repeatInterval);
   const pendingCustomBeats = useRef<CustomBeat[]>(customBeats);
 
-  const defaultCustomBeat: CustomBeat = {
-    h_p: 0.15, b_p: 0.08, h_q: -0.1, b_q: 0.025, h_r: 1.2, b_r: 0.05,
-    h_s: -0.25, b_s: 0.025, h_t: 0.2, b_t: 0.16,
-    l_pq: 0.08, l_st: 0.12, l_tp: 0.3
-  };
-
+  // ==================== Helper Functions ====================
   const raisedCosinePulse = (t: number, h: number, b: number, t0: number): number => {
     if (b === 0 || t < t0 || t > t0 + b) return 0;
     return (h / 2) * (1 - Math.cos((2 * Math.PI * (t - t0)) / b));
   };
 
+  const pointsToPath = (pts: (Point | null)[]): string => {
+    return pts.reduce((str, p, i) => {
+      if (!p) return str;
+      return str + (i === 0 || !pts[i - 1] ? "M" : " L") + ` ${p.x} ${p.y}`;
+    }, "");
+  };
+
+  const generateGrid = (): React.ReactElement[] => {
+    const elements: React.ReactElement[] = [];
+    const small = 8;
+
+    for (let x = 0; x <= SVG_WIDTH; x += small) {
+      elements.push(
+        <line
+          key={`v-${x}`}
+          x1={x}
+          y1={0}
+          x2={x}
+          y2={SVG_HEIGHT}
+          stroke="#eee"
+          strokeWidth="1"
+        />
+      );
+    }
+
+    for (let y = 0; y <= SVG_HEIGHT; y += small) {
+      elements.push(
+        <line
+          key={`h-${y}`}
+          x1={0}
+          y1={y}
+          x2={SVG_WIDTH}
+          y2={y}
+          stroke="#eee"
+          strokeWidth="1"
+        />
+      );
+    }
+
+    return elements;
+  };
+
+  const [, forceUpdate] = useState({});
+  const triggerRerender = () => forceUpdate({});
+
+  // ==================== Waveform Generation ====================
   const generateWaveformSegment = useCallback((startTime: number, endTime: number, useNewParams: boolean = false): Point[] => {
     const y0 = SVG_HEIGHT / 2;
     const pts: Point[] = [];
@@ -303,51 +422,7 @@ const ECGWaveformAnimator: React.FC = () => {
     return generateWaveformSegment(0, totalTime, false);
   }, [generateWaveformSegment]);
 
-  const pointsToPath = (pts: (Point | null)[]): string => {
-    return pts.reduce((str, p, i) => {
-      if (!p) return str;
-      return str + (i === 0 || !pts[i - 1] ? "M" : " L") + ` ${p.x} ${p.y}`;
-    }, "");
-  };
-
-  const generateGrid = (): React.ReactElement[] => {
-    const elements: React.ReactElement[] = [];
-    const small = 8;
-
-    for (let x = 0; x <= SVG_WIDTH; x += small) {
-      elements.push(
-        <line
-          key={`v-${x}`}
-          x1={x}
-          y1={0}
-          x2={x}
-          y2={SVG_HEIGHT}
-          stroke="#eee"
-          strokeWidth="1"
-        />
-      );
-    }
-
-    for (let y = 0; y <= SVG_HEIGHT; y += small) {
-      elements.push(
-        <line
-          key={`h-${y}`}
-          x1={0}
-          y1={y}
-          x2={SVG_WIDTH}
-          y2={y}
-          stroke="#eee"
-          strokeWidth="1"
-        />
-      );
-    }
-
-    return elements;
-  };
-
-  const [, forceUpdate] = useState({});
-  const triggerRerender = () => forceUpdate({});
-
+  // ==================== Animation Logic ====================
   const animationLoop = useCallback((ts: number) => {
     const dt = lastTimestamp.current ? (ts - lastTimestamp.current) / 1000 : 0;
     lastTimestamp.current = ts;
@@ -424,9 +499,7 @@ const ECGWaveformAnimator: React.FC = () => {
     animationFrameId.current = requestAnimationFrame(animationLoop);
   }, [generateWaveformPoints, generateWaveformSegment]);
 
-  // New: Track if changes should apply next iteration or immediately
-  const pendingNextIteration = useRef<boolean>(false);
-
+  // ==================== Parameter Management ====================
   const applyChanges = () => {
     // Store the new parameters to be applied immediately from current position
     pendingParams.current = { ...waveParams };
@@ -447,7 +520,6 @@ const ECGWaveformAnimator: React.FC = () => {
     pendingNextIteration.current = false; // Clear any pending iteration changes
   };
 
-  // Auto-queue changes for next iteration when any parameter changes
   const queueChangesForNextIteration = () => {
     pendingParams.current = { ...waveParams };
     pendingPixelsPerMv.current = pixelsPerMv;
@@ -473,8 +545,9 @@ const ECGWaveformAnimator: React.FC = () => {
     queueChangesForNextIteration();
   }, [waveParams, pixelsPerMv, rWaveEnabled, rWaveCount, rWaveInterval, pWaveEnabled, pWaveCount, pWaveInterval, useCustomBeatParameters, repeatInterval, customBeats]);
 
+  // ==================== Custom Beat Management ====================
   const addCustomBeat = () => {
-    setCustomBeats([...customBeats, { ...defaultCustomBeat }]);
+    setCustomBeats([...customBeats, { ...DEFAULT_CUSTOM_BEAT }]);
   };
 
   const removeCustomBeat = (index: number) => {
@@ -487,6 +560,7 @@ const ECGWaveformAnimator: React.FC = () => {
     setCustomBeats(updated);
   };
 
+  // ==================== Initialization and Cleanup ====================
   useEffect(() => {
     pathPoints.current = generateWaveformPoints();
     drawnPoints.current = Array(pathPoints.current.length).fill(null);
@@ -502,7 +576,7 @@ const ECGWaveformAnimator: React.FC = () => {
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [animationLoop]);
+  }, [animationLoop, generateWaveformPoints]);
 
   const getCurrentPointer = (): Point => {
     let idx = pathPoints.current.findIndex(pt => pt.x >= pointerX.current);
@@ -512,6 +586,7 @@ const ECGWaveformAnimator: React.FC = () => {
 
   const currentPointer = getCurrentPointer();
 
+  // ==================== Render ====================
   return (
     <div className="font-sans bg-gray-50 text-gray-800 min-h-screen p-5">
       <h1 className="text-3xl font-bold text-gray-700 mb-6 text-center md:text-left">ECG Waveform Animator (Progressive Updates)</h1>
@@ -549,27 +624,12 @@ const ECGWaveformAnimator: React.FC = () => {
           {/* Wave Parameters */}
           <h2 className="text-xl font-semibold mt-6 mb-4">Wave Parameters (mV, sec)</h2>
 
-          {[
-            ['h_p', 'P Wave Height', 0.01],
-            ['b_p', 'P Wave Breadth', 0.01],
-            ['h_q', 'Q Wave Height', 0.01],
-            ['b_q', 'Q Wave Breadth', 0.005],
-            ['h_r', 'R Wave Height', 0.1],
-            ['b_r', 'R Wave Breadth', 0.01],
-            ['h_s', 'S Wave Height', 0.01],
-            ['b_s', 'S Wave Breadth', 0.005],
-            ['h_t', 'T Wave Height', 0.01],
-            ['b_t', 'T Wave Breadth', 0.01],
-            ['l_pq', 'PQ Segment Length', 0.01],
-            ['l_st', 'ST Segment Length', 0.01],
-            ['l_tp', 'TP Segment Length', 0.01],
-            ['n_p', 'Default P Waves per QRS', 1]
-          ].map(([key, label, step]) => (
+          {WAVE_PARAMETERS.map(({ key, label, step }) => (
             <div key={key} className="flex flex-col sm:flex-row items-center gap-3 mb-3">
               <label className="flex-1 sm:min-w-36 text-sm text-gray-600">{label}:</label>
               <input
                 type="number"
-                value={waveParams[key as keyof WaveParams]}
+                value={waveParams[key]}
                 onChange={(e) => setWaveParams({ ...waveParams, [key]: parseFloat(e.target.value) })}
                 className="flex-1 sm:min-w-16 p-1 border rounded w-full"
                 step={step}
@@ -677,36 +737,13 @@ const ECGWaveformAnimator: React.FC = () => {
           </div>
 
           {customBeats.map((beat, index) => (
-            <div key={index} className="border border-gray-300 p-3 mb-3 bg-gray-50 rounded">
-              <h3 className="text-base font-medium mb-2">Custom Beat {index + 1}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 text-xs">
-                {[
-                  ['h_p', 'P Height'], ['b_p', 'P Breadth'],
-                  ['h_q', 'Q Height'], ['b_q', 'Q Breadth'],
-                  ['h_r', 'R Height'], ['b_r', 'R Breadth'],
-                  ['h_s', 'S Height'], ['b_s', 'S Breadth'],
-                  ['h_t', 'T Height'], ['b_t', 'T Breadth'],
-                  ['l_pq', 'PQ Length'], ['l_st', 'ST Length'], ['l_tp', 'TP Length']
-                ].map(([key, label]) => (
-                  <div key={key} className="flex items-center gap-1">
-                    <label className="flex-1 text-xs text-gray-600">{label}:</label>
-                    <input
-                      type="number"
-                      value={beat[key as keyof CustomBeat]}
-                      onChange={(e) => updateCustomBeat(index, key as keyof CustomBeat, parseFloat(e.target.value))}
-                      className="flex-1 p-1 border rounded text-xs w-full"
-                      step="0.01"
-                    />
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => removeCustomBeat(index)}
-                className="mt-2 bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 w-full sm:w-auto"
-              >
-                Remove Beat
-              </button>
-            </div>
+            <CustomBeatEditor
+              key={index}
+              beat={beat}
+              index={index}
+              onUpdate={updateCustomBeat}
+              onRemove={removeCustomBeat}
+            />
           ))}
 
           <button
