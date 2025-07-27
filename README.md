@@ -1,69 +1,89 @@
-# React + TypeScript + Vite
+ECG Waveform Animator (Custom Beats)
+This is a React-based web application that simulates an Electrocardiogram (ECG) waveform. It allows users to adjust various parameters of the ECG waves (P, QRS complex, T wave) and observe the changes in real-time. Additionally, it supports defining custom beat sequences, enabling the simulation of irregular heart rhythms.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Features
+Real-time ECG Waveform Display: Animates a continuous ECG waveform on an SVG canvas with a grid background.
 
-Currently, two official plugins are available:
+Adjustable Wave Parameters: Control the height and breadth of P, Q, R, S, and T waves, as well as the lengths of PQ, ST, and TP segments.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Heart Rate Control: Dynamically change the heart rate (beats per minute) to see its effect on the waveform speed.
 
-## Expanding the ESLint configuration
+Dynamic R and P Wave Patterns: Configure patterns to show different numbers of P or R waves after a specified interval of normal QRS complexes, useful for simulating heart blocks or other arrhythmias.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Custom Beat Sequences: Define a sequence of custom beats with unique wave parameters. The animator can then cycle through these custom beats after a configurable number of normal beats, allowing for advanced arrhythmia simulation.
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Responsive Design: The layout adjusts for different screen sizes, with controls optimized for both desktop and mobile views.
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+Modular Codebase: Organized into React components and custom hooks for better maintainability and separation of concerns.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Technologies Used
+React: Frontend library for building user interfaces.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+TypeScript: Superset of JavaScript that adds static typing.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Tailwind CSS: A utility-first CSS framework for rapid UI development.
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+SVG: Used for rendering the dynamic ECG waveform.
+
+Project Structure
+The project follows a component-based and hook-based architecture for clear separation of concerns:
+
+src/
+├── App.tsx             # Root component, renders ECGGenerator
+├── components/
+│   ├── ECGCanvas.tsx   # Renders the SVG canvas and uses animation hook
+│   ├── ECGControls.tsx # Handles all input controls and custom beat logic
+│   └── ECGGenerator.tsx# Main component, orchestrates controls and canvas
+├── hooks/
+│   ├── useECGAnimation.ts    # Manages SVG drawing, grid, and animation loop
+│   └── useECGWaveformData.ts # Generates numerical waveform data points
+└── types/
+    └── ecg.d.ts        # TypeScript interface definitions for data structures
+
+Setup and Installation
+To run this project locally, follow these steps:
+
+Clone the repository:
+
+git clone <repository-url>
+cd <repository-directory>
+
+(Replace <repository-url> and <repository-directory> with your actual repository information)
+
+Install dependencies:
+
+npm install
+# or
+yarn install
+
+Start the development server:
+
+npm start
+# or
+yarn start
+
+This will open the application in your browser, usually at http://localhost:3000.
+
+Usage
+Adjust Wave Parameters: Use the sliders and input fields in the "Controls Panel" to modify the basic shape of the P, QRS, and T waves.
+
+Control Heart Rate: Change the "Heart Rate (bpm)" to speed up or slow down the animation.
+
+Experiment with Dynamic Patterns: Enable "Dynamic R Wave Pattern" or "Dynamic P Wave Pattern" to introduce abnormalities. Adjust the "Waves in Pattern" and "Apply After N QRS" values to control their frequency and type.
+
+Create Custom Beat Sequences:
+
+Check "Enable Custom Beat Sequence".
+
+Click "+ Add Custom Beat" to add new custom beat configurations.
+
+Modify the parameters for each custom beat.
+
+Set "Normal Beats Before Repeat" to define how many normal beats occur before the custom beat sequence repeats.
+
+Click "Apply Changes" to see the updated waveform.
+
+Observe the Waveform: The ECG waveform will continuously animate on the right-hand side of the screen, reflecting your parameter adjustments in real-time.
+
+Contributing
+Feel free to fork the repository, make improvements, and submit pull requests. For major changes, please open an issue first to discuss what you would like to change.
