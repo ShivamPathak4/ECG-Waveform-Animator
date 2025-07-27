@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { WaveParams, CustomBeat, Point } from '../types/ecg';
 import { useECGWaveformData } from '../hooks/useECGWaveformData';
-import ECGControls from './EcgControls';
+import ECGControls from './ECGControls';
 import ECGCanvas from './ECGCanvas';
 
 const ECGGenerator: React.FC = () => {

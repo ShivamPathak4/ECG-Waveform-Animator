@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Point } from '../types/ecg';
-import { useECGAnimation } from '../hooks/useEcgAnimation';
+import { useECGAnimation } from '../hooks/useECGAnimation';
 
 interface ECGCanvasProps {
   pathPoints: Point[]; // The array of waveform points to be animated
