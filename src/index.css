@@ -1,0 +1,32 @@
+@import "tailwindcss";
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f4f4f9;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1 {
+    color: #2c3e50;
+    /* Tailwind equivalent for the original h1 style will be applied in the component itself */
+}
+
+/* Custom styles for grid lines in SVG, not directly from original HTML but good to keep here */
+#ecgSVG line {
+    transition: stroke-width 0.1s ease-in-out; /* Smooth transition for grid lines */
+}
+
+/* Add any specific utility classes if needed or for direct matches */
+.param-group-label {
+    flex: 1 0 145px; /* Matches original width */
+    font-size: 0.95em;
+    color: #555;
+}
+
+.param-group-input {
+    flex: 1 0 70px; /* Matches original width */
+    padding: 4px;
+}
