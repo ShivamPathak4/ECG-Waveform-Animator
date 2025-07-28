@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 // ==================== Types and Interfaces ====================
+
 interface WaveParams {
   heart_rate: number;
   h_p: number;
@@ -52,6 +53,7 @@ type CustomBeatParameter = {
 };
 
 // ==================== Constants ====================
+
 const DEFAULT_CUSTOM_BEAT: CustomBeat = {
   h_p: 0.15, b_p: 0.08, h_q: -0.1, b_q: 0.025, h_r: 1.2, b_r: 0.05,
   h_s: -0.25, b_s: 0.025, h_t: 0.2, b_t: 0.16,
@@ -81,7 +83,7 @@ const CUSTOM_BEAT_PARAMETERS: CustomBeatParameter[] = [
   { key: 'h_r', label: 'R Height' }, { key: 'b_r', label: 'R Breadth' },
   { key: 'h_s', label: 'S Height' }, { key: 'b_s', label: 'S Breadth' },
   { key: 'h_t', label: 'T Height' }, { key: 'b_t', label: 'T Breadth' },
-  { key: 'l_pq', label: 'PQ Length' }, { key: 'l_st', label: 'ST Length' }, 
+  { key: 'l_pq', label: 'PQ Length' }, { key: 'l_st', label: 'ST Length' },
   { key: 'l_tp', label: 'TP Length' }
 ];
 
@@ -92,6 +94,7 @@ const SVG_WIDTH = 1000;
 const SVG_HEIGHT = 400;
 
 // ==================== Helper Components ====================
+
 interface CustomBeatEditorProps {
   beat: CustomBeat;
   index: number;
@@ -126,6 +129,7 @@ const CustomBeatEditor: React.FC<CustomBeatEditorProps> = ({ beat, index, onUpda
 );
 
 // ==================== Main Component ====================
+
 const ECGWaveformAnimator: React.FC = () => {
   // ==================== State Management ====================
   const [pixelsPerMv, setPixelsPerMv] = useState<number>(100);
@@ -169,7 +173,7 @@ const ECGWaveformAnimator: React.FC = () => {
   const newParametersReady = useRef<boolean>(false);
   const pendingNextIteration = useRef<boolean>(false);
 
-  // Global counters to persist beat state
+  // Global counters to persist beat state - these NEVER reset
   const globalBeatCounter = useRef<number>(0);
   const globalCustomIdx = useRef<number>(0);
   const globalWaitingNormalBeats = useRef<number>(0);
@@ -203,6 +207,7 @@ const ECGWaveformAnimator: React.FC = () => {
   const pendingCustomBeats = useRef<CustomBeat[]>(customBeats);
 
   // ==================== Helper Functions ====================
+
   const raisedCosinePulse = (t: number, h: number, b: number, t0: number): number => {
     if (b === 0 || t < t0 || t > t0 + b) return 0;
     return (h / 2) * (1 - Math.cos((2 * Math.PI * (t - t0)) / b));
@@ -254,7 +259,7 @@ const ECGWaveformAnimator: React.FC = () => {
   const triggerRerender = () => forceUpdate({});
 
   // ==================== Waveform Generation ====================
-  const generateWaveformSegment = useCallback((startTime: number, endTime: number, useNewParams: boolean = false): Point[] => {
+  const generateWaveformSegment = useCallback((startTime: number, endTime: number, useNewParams: boolean = false, updateGlobalCounters: boolean = true): Point[] => {
     const y0 = SVG_HEIGHT / 2;
     const pts: Point[] = [];
     const dt = 1 / PIXELS_PER_SECOND;
@@ -272,7 +277,7 @@ const ECGWaveformAnimator: React.FC = () => {
     const currentRepeatInterval = useNewParams ? pendingRepeatInterval.current : appliedRepeatInterval.current;
     const currentCustomBeats = useNewParams ? pendingCustomBeats.current : appliedCustomBeats.current;
 
-    // Use global counters
+    // Use global counters - THESE ARE CONTINUOUS AND NEVER RESET
     let rCycleCounterLocal = globalRCycleCounter.current;
     let pCycleCounterLocal = globalPCycleCounter.current;
     let beatCounter = globalBeatCounter.current;
@@ -405,8 +410,8 @@ const ECGWaveformAnimator: React.FC = () => {
       }
     }
 
-    // Update global counters only if we're using new params (means we're updating the main path)
-    if (useNewParams) {
+    // Update global counters only if specified (this maintains continuity)
+    if (updateGlobalCounters) {
       globalRCycleCounter.current = rCycleCounterLocal;
       globalPCycleCounter.current = pCycleCounterLocal;
       globalBeatCounter.current = beatCounter;
@@ -419,7 +424,7 @@ const ECGWaveformAnimator: React.FC = () => {
 
   const generateWaveformPoints = useCallback((): Point[] => {
     const totalTime = SVG_WIDTH / PIXELS_PER_SECOND;
-    return generateWaveformSegment(0, totalTime, false);
+    return generateWaveformSegment(0, totalTime, false, true);
   }, [generateWaveformSegment]);
 
   // ==================== Animation Logic ====================
@@ -446,8 +451,8 @@ const ECGWaveformAnimator: React.FC = () => {
       // Generate new waveform segment from this point onwards
       const currentTimeInSeconds = pointerX.current / PIXELS_PER_SECOND;
       const remainingTime = (SVG_WIDTH - pointerX.current) / PIXELS_PER_SECOND;
-      const newSegment = generateWaveformSegment(currentTimeInSeconds, currentTimeInSeconds + remainingTime, true);
-      
+      const newSegment = generateWaveformSegment(currentTimeInSeconds, currentTimeInSeconds + remainingTime, true, true);
+     
       // Update the path points from current position onwards
       const currentIndex = Math.floor(pointerX.current / (1000 / pathPoints.current.length));
       for (let i = 0; i < newSegment.length && currentIndex + i < pathPoints.current.length; i++) {
@@ -482,9 +487,11 @@ const ECGWaveformAnimator: React.FC = () => {
           appliedCustomBeats.current = [...pendingCustomBeats.current];
           pendingNextIteration.current = false;
         }
+        // IMPORTANT: Generate new waveform but DON'T reset global counters
+        // This ensures continuity across screen sweeps
         pathPoints.current = generateWaveformPoints();
       }
-      
+     
       const es = pointerX.current - ERASE_WIDTH / 2;
       const ee = pointerX.current + ERASE_WIDTH / 2;
       const si = drawnPoints.current.findIndex(pt => pt && pt.x >= es);
